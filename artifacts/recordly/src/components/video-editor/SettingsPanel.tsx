@@ -45,6 +45,7 @@ import { useI18n, useScopedT } from "../../contexts/I18nContext";
 import type { AppLocale } from "../../i18n/config";
 import { SUPPORTED_LOCALES } from "../../i18n/config";
 import { AnnotationSettingsPanel } from "./AnnotationSettingsPanel";
+import { AdjustLayoutDialog } from "./AdjustLayoutDialog";
 import { CameraLayoutPanel, type LayoutPreset } from "./CameraLayoutPanel";
 import {
         CURSOR_MOTION_PRESETS,
@@ -65,6 +66,7 @@ import type {
         EditorEffectSection,
         FigureData,
         Padding,
+        WebcamBackgroundRemoval,
         WebcamOverlaySettings,
         WebcamPositionPreset,
         ZoomDepth,
@@ -1661,6 +1663,9 @@ export function SettingsPanel({
                 onFrameChange?.(resolvedFrame);
                 removeBackgroundStateRef.current = null;
         };
+
+        const [adjustLayoutOpen, setAdjustLayoutOpen] = useState(false);
+        const [savedLayouts, setSavedLayouts] = useState<Array<{ id: string; label: string; preset: LayoutPreset; size: number; cornerRadius: number; aspectRatio: number; margin: number }>>([]);
 
         const resetWebcamSection = () => {
                 if (!onWebcamChange) return;
@@ -3679,308 +3684,447 @@ export function SettingsPanel({
                                                 {renderExtensionPanelsForSections("cursor")}
                                         </section>
                                 );
-                        case "webcam":
+                        case "webcam": {
+                                const bgRemoval: WebcamBackgroundRemoval = webcam?.backgroundRemoval ?? "none";
+                                const BG_OPTIONS: Array<{ id: WebcamBackgroundRemoval; label: string }> = [
+                                        { id: "none", label: "Original" },
+                                        { id: "blur", label: "Blur" },
+                                        { id: "image", label: "Image" },
+                                ];
                                 return (
-                                        <section className="flex flex-col gap-2">
-                                                <div className="flex items-center justify-between gap-3">
-                                                        <SectionLabel>{tSettings("sections.webcam", "Webcam")}</SectionLabel>
-                                                        <button
-                                                                type="button"
-                                                                onClick={resetWebcamSection}
-                                                                className="text-[10px] text-[#a0673a] transition-opacity hover:opacity-80"
-                                                        >
-                                                                {t("common.actions.reset", "Reset")}
-                                                        </button>
+                                        <section className="flex flex-col gap-3">
+                                                {/* Adjust Layout dialog */}
+                                                {adjustLayoutOpen && webcam && (
+                                                        <AdjustLayoutDialog
+                                                                webcam={webcam}
+                                                                onApply={(positionX, positionY) => {
+                                                                        updateWebcam({ positionPreset: "custom", positionX, positionY });
+                                                                        setAdjustLayoutOpen(false);
+                                                                }}
+                                                                onCancel={() => setAdjustLayoutOpen(false)}
+                                                        />
+                                                )}
+
+                                                {/* ── Show Camera ── */}
+                                                <div className="flex items-center justify-between">
+                                                        <span className="text-[11px] font-semibold text-foreground">Show Camera</span>
+                                                        <Switch
+                                                                checked={webcam?.enabled ?? false}
+                                                                onCheckedChange={(enabled) => updateWebcam({ enabled })}
+                                                                className="data-[state=checked]:bg-violet-600 scale-75"
+                                                        />
                                                 </div>
-                                                <div className="flex flex-col gap-1.5">
-                                                        <div className="flex items-center justify-between rounded-lg bg-foreground/[0.03] px-2.5 py-1.5">
-                                                                <span className="text-[10px] text-muted-foreground">
-                                                                        {tSettings("effects.show", "Show")}
-                                                                </span>
-                                                                <Switch
-                                                                        checked={webcam?.enabled ?? false}
-                                                                        onCheckedChange={(enabled) => updateWebcam({ enabled })}
-                                                                        className="data-[state=checked]:bg-[#a0673a] scale-75"
-                                                                />
-                                                        </div>
-                                                        <div className="flex items-center justify-between rounded-lg bg-foreground/[0.03] px-2.5 py-1.5">
-                                                                <span className="text-[10px] text-muted-foreground">
-                                                                        {tSettings("effects.webcamReactToZoom")}
-                                                                </span>
-                                                                <Switch
-                                                                        checked={webcam?.reactToZoom ?? DEFAULT_WEBCAM_REACT_TO_ZOOM}
-                                                                        onCheckedChange={(reactToZoom) => updateWebcam({ reactToZoom })}
-                                                                        className="data-[state=checked]:bg-[#a0673a] scale-75"
-                                                                />
-                                                        </div>
-                                                        <div className="rounded-lg bg-foreground/[0.03] px-2.5 py-2">
-                                                                <div className="mb-2 flex items-center justify-between gap-2">
-                                                                        <div className="text-[10px] text-muted-foreground">
-                                                                                {tSettings("effects.webcamCrop", "Crop")}
+
+                                                {/* ── Select Avatar / Webcam Source ── */}
+                                                <div className="flex flex-col gap-2">
+                                                        <span className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/55">
+                                                                Select Avatar
+                                                        </span>
+                                                        <div className="flex items-center gap-2.5">
+                                                                {/* Current webcam source circle */}
+                                                                <button
+                                                                        type="button"
+                                                                        onClick={onUploadWebcam}
+                                                                        title="Upload or change webcam footage"
+                                                                        className={cn(
+                                                                                "relative flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-full border-2 transition-all",
+                                                                                "hover:scale-[1.04] active:scale-[0.97]",
+                                                                                webcam?.sourcePath
+                                                                                        ? "border-violet-500/60 ring-2 ring-violet-500/20"
+                                                                                        : "border-dashed border-foreground/20 bg-foreground/[0.04] hover:border-foreground/40",
+                                                                        )}
+                                                                >
+                                                                        {webcam?.sourcePath ? (
+                                                                                <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-violet-700 to-violet-900">
+                                                                                        <svg viewBox="0 0 24 24" fill="none" className="h-7 w-7">
+                                                                                                <circle cx="12" cy="8" r="4" fill="rgba(255,255,255,0.85)" />
+                                                                                                <path d="M4 20c0-4.4 3.6-8 8-8s8 3.6 8 8" stroke="rgba(255,255,255,0.65)" strokeWidth="2" strokeLinecap="round" />
+                                                                                        </svg>
+                                                                                </div>
+                                                                        ) : (
+                                                                                <svg viewBox="0 0 24 24" fill="none" className="h-6 w-6 text-foreground/30">
+                                                                                        <circle cx="12" cy="8" r="4" stroke="currentColor" strokeWidth="1.5" />
+                                                                                        <path d="M4 20c0-4.4 3.6-8 8-8s8 3.6 8 8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+                                                                                </svg>
+                                                                        )}
+                                                                        {webcam?.sourcePath && (
+                                                                                <div className="absolute bottom-0.5 right-0.5 h-3.5 w-3.5 rounded-full border border-background bg-violet-500 flex items-center justify-center">
+                                                                                        <svg viewBox="0 0 10 10" className="h-2 w-2 text-white">
+                                                                                                <path d="M2 5h6M5 2v6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+                                                                                        </svg>
+                                                                                </div>
+                                                                        )}
+                                                                </button>
+
+                                                                {/* Actions */}
+                                                                <div className="flex flex-col gap-1.5 min-w-0">
+                                                                        <div className="text-[10px] text-muted-foreground truncate">
+                                                                                {webcamFileName ?? "No camera footage"}
                                                                         </div>
-                                                                        <div className="flex items-center gap-2">
-                                                                                {(() => {
-                                                                                        const cr = webcam?.cropRegion;
-                                                                                        const isDefault =
-                                                                                                !cr ||
-                                                                                                (cr.x === 0 && cr.y === 0 && cr.width === 1 && cr.height === 1);
-                                                                                        return (
-                                                                                                <>
-                                                                                                        {!isDefault && (
-                                                                                                                <button
-                                                                                                                        type="button"
-                                                                                                                        onClick={() => updateWebcam({ cropRegion: DEFAULT_CROP_REGION })}
-                                                                                                                        className="text-[10px] text-[#a0673a] transition-opacity hover:opacity-80"
-                                                                                                                >
-                                                                                                                        {t("common.actions.reset", "Reset")}
-                                                                                                                </button>
-                                                                                                        )}
-                                                                                                        <Switch
-                                                                                                                checked={!isDefault}
-                                                                                                                onCheckedChange={(checked) => {
-                                                                                                                        if (!checked) {
-                                                                                                                                updateWebcam({ cropRegion: DEFAULT_CROP_REGION });
-                                                                                                                        }
-                                                                                                                }}
-                                                                                                                className="data-[state=checked]:bg-[#a0673a] scale-75"
-                                                                                                        />
-                                                                                                </>
-                                                                                        );
-                                                                                })()}
-                                                                        </div>
-                                                                </div>
-                                                                {(() => {
-                                                                        const cr = webcam?.cropRegion;
-                                                                        const isDefault =
-                                                                                !cr ||
-                                                                                (cr.x === 0 && cr.y === 0 && cr.width === 1 && cr.height === 1);
-                                                                        if (isDefault) return null;
-                                                                        return (
-                                                                                <WebcamCropControl
-                                                                                        cropRegion={webcamCrop}
-                                                                                        mirrored={webcam?.mirror ?? true}
-                                                                                        previewSrc={webcamPreviewSrc}
-                                                                                        previewCurrentTime={webcamPreviewCurrentTime}
-                                                                                        previewPlaying={webcamPreviewPlaying}
-                                                                                        previewTimeOffsetMs={webcam?.timeOffsetMs}
-                                                                                        onCropChange={(cropRegion) => updateWebcam({ cropRegion })}
-                                                                                />
-                                                                        );
-                                                                })()}
-                                                                {(() => {
-                                                                        const cr = webcam?.cropRegion;
-                                                                        const isDefault =
-                                                                                !cr ||
-                                                                                (cr.x === 0 && cr.y === 0 && cr.width === 1 && cr.height === 1);
-                                                                        if (!isDefault) return null;
-                                                                        return (
+                                                                        <div className="flex gap-1.5">
                                                                                 <button
                                                                                         type="button"
-                                                                                        onClick={() =>
-                                                                                                updateWebcam({
-                                                                                                        cropRegion: { x: 0.1, y: 0.1, width: 0.8, height: 0.8 },
-                                                                                                })
-                                                                                        }
-                                                                                        className="mt-1 w-full rounded-md border border-dashed border-foreground/[0.12] py-2 text-[10px] text-muted-foreground/50 transition-all hover:border-foreground/25 hover:text-muted-foreground/80"
+                                                                                        onClick={onUploadWebcam}
+                                                                                        className="flex items-center gap-1 rounded-md border border-foreground/10 bg-foreground/[0.05] px-2 py-1 text-[10px] text-foreground/70 transition-all hover:border-foreground/20 hover:bg-foreground/[0.09]"
                                                                                 >
-                                                                                        Enable crop to fine-tune
+                                                                                        <Upload className="h-2.5 w-2.5" />
+                                                                                        {webcam?.sourcePath ? "Replace" : "Upload"}
                                                                                 </button>
-                                                                        );
-                                                                })()}
-                                                        </div>
-                                                        <div className="rounded-xl border border-foreground/[0.08] bg-foreground/[0.03] overflow-hidden">
-                                                                <div className="px-3 pb-3 pt-2.5 flex flex-col gap-3">
-                                                                        {/* Camera Layout Panel */}
-                                                                        <CameraLayoutPanel
-                                                                                webcam={webcam}
-                                                                                webcamPositionPreset={webcamPositionPreset}
-                                                                                onApplyLayout={applyWebcamLayout}
-                                                                        />
-                                                                        {/* Webcam shape picker */}
-                                                                        <div>
-                                                                                <div className="text-[9px] text-muted-foreground/55 uppercase tracking-wide mb-1.5">Cam Shape</div>
-                                                                                <div className="grid grid-cols-5 gap-1">
-                                                                                        {WEBCAM_SHAPES.map((shape) => {
-                                                                                                const currentRadius = webcam?.cornerRadius ?? DEFAULT_WEBCAM_CORNER_RADIUS;
-                                                                                                const isShapeActive = shape.id === "circle"
-                                                                                                        ? currentRadius >= 140
-                                                                                                        : shape.id === "sharp"
-                                                                                                        ? currentRadius <= 2
-                                                                                                        : Math.abs(currentRadius - shape.cornerRadius) <= 12;
-                                                                                                return (
-                                                                                                        <button
-                                                                                                                key={shape.id}
-                                                                                                                type="button"
-                                                                                                                title={shape.label}
-                                                                                                                onClick={() => updateWebcam({ cornerRadius: shape.cornerRadius })}
-                                                                                                                className={cn(
-                                                                                                                        "flex flex-col items-center gap-0.5 rounded-lg py-1.5 border transition-all duration-150",
-                                                                                                                        isShapeActive
-                                                                                                                                ? "border-blue-500/60 bg-blue-500/15 text-blue-400"
-                                                                                                                                : "border-foreground/10 bg-foreground/[0.04] text-foreground/40 hover:border-foreground/25 hover:text-foreground/60",
-                                                                                                                )}
-                                                                                                        >
-                                                                                                                {shape.icon}
-                                                                                                                <span className="text-[7.5px]">{shape.label}</span>
-                                                                                                        </button>
-                                                                                                );
-                                                                                        })}
-                                                                                </div>
+                                                                                {webcam?.sourcePath && (
+                                                                                        <button
+                                                                                                type="button"
+                                                                                                onClick={onClearWebcam}
+                                                                                                className="flex items-center gap-1 rounded-md border border-foreground/10 bg-foreground/[0.05] px-2 py-1 text-[10px] text-foreground/50 transition-all hover:border-red-500/30 hover:bg-red-500/[0.06] hover:text-red-400"
+                                                                                        >
+                                                                                                <Trash2 className="h-2.5 w-2.5" />
+                                                                                                Remove
+                                                                                        </button>
+                                                                                )}
                                                                         </div>
-                                                                        {/* Size slider */}
-                                                                        <SliderControl
-                                                                                label="Size"
-                                                                                value={webcam?.size ?? DEFAULT_WEBCAM_SIZE}
-                                                                                defaultValue={DEFAULT_WEBCAM_SIZE}
-                                                                                min={10}
-                                                                                max={100}
-                                                                                step={1}
-                                                                                onChange={(v) => updateWebcam({ size: v })}
-                                                                                formatValue={(v) => `${Math.round(v)}%`}
-                                                                                parseInput={(text) => parseFloat(text.replace(/%$/, ""))}
-                                                                        />
-                                                                        {/* Flip Horizontal */}
+                                                                </div>
+                                                        </div>
+                                                </div>
+
+                                                {/* ── Camera Layout ── */}
+                                                <div className="flex flex-col gap-2">
+                                                        <span className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/55">
+                                                                Camera Layout
+                                                        </span>
+                                                        <CameraLayoutPanel
+                                                                webcam={webcam}
+                                                                webcamPositionPreset={webcamPositionPreset}
+                                                                onApplyLayout={applyWebcamLayout}
+                                                        />
+
+                                                        {/* Flip Horizontal */}
+                                                        <button
+                                                                type="button"
+                                                                onClick={() => updateWebcam({ mirror: !(webcam?.mirror ?? true) })}
+                                                                className={cn(
+                                                                        "w-full rounded-lg border py-2 text-[10px] font-medium transition-all duration-150 flex items-center justify-center gap-1.5",
+                                                                        webcam?.mirror
+                                                                                ? "border-violet-500/50 bg-violet-500/[0.10] text-violet-300"
+                                                                                : "border-foreground/10 bg-foreground/[0.04] text-muted-foreground hover:border-foreground/20 hover:bg-foreground/[0.08]",
+                                                                )}
+                                                        >
+                                                                <svg viewBox="0 0 16 16" fill="none" className="h-3.5 w-3.5">
+                                                                        <path d="M8 2v12M3 5l-2 3 2 3M13 5l2 3-2 3" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
+                                                                </svg>
+                                                                Flip Horizontal
+                                                        </button>
+
+                                                        {/* Adjust Layout */}
+                                                        <button
+                                                                type="button"
+                                                                onClick={() => setAdjustLayoutOpen(true)}
+                                                                className="w-full rounded-lg border border-foreground/10 bg-foreground/[0.04] py-2 text-[10px] font-medium text-muted-foreground transition-all duration-150 flex items-center justify-center gap-1.5 hover:border-foreground/20 hover:bg-foreground/[0.08]"
+                                                        >
+                                                                <svg viewBox="0 0 16 16" fill="none" className="h-3.5 w-3.5">
+                                                                        <rect x="2" y="2" width="12" height="12" rx="2" stroke="currentColor" strokeWidth="1.4" />
+                                                                        <path d="M5 8h6M8 5v6" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+                                                                </svg>
+                                                                Adjust Layout
+                                                        </button>
+                                                </div>
+
+                                                {/* ── Multiple Layouts ── */}
+                                                <div className="flex flex-col gap-2">
+                                                        <div className="flex items-center justify-between">
+                                                                <span className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/55">
+                                                                        Multiple Layouts
+                                                                </span>
+                                                        </div>
+                                                        {savedLayouts.length > 0 && (
+                                                                <div className="flex flex-col gap-1">
+                                                                        {savedLayouts.map((sl) => (
+                                                                                <div
+                                                                                        key={sl.id}
+                                                                                        className="flex items-center justify-between rounded-lg border border-foreground/[0.08] bg-foreground/[0.03] px-2.5 py-1.5"
+                                                                                >
+                                                                                        <span className="text-[10px] text-foreground/70">{sl.label}</span>
+                                                                                        <div className="flex items-center gap-1.5">
+                                                                                                <button
+                                                                                                        type="button"
+                                                                                                        onClick={() => applyWebcamLayout(sl.preset, sl.size, sl.cornerRadius, sl.aspectRatio, sl.margin)}
+                                                                                                        className="text-[9px] text-violet-400 hover:text-violet-300 transition-colors"
+                                                                                                >
+                                                                                                        Apply
+                                                                                                </button>
+                                                                                                <button
+                                                                                                        type="button"
+                                                                                                        onClick={() => setSavedLayouts((prev) => prev.filter((l) => l.id !== sl.id))}
+                                                                                                        className="text-[9px] text-foreground/30 hover:text-red-400 transition-colors"
+                                                                                                >
+                                                                                                        ✕
+                                                                                                </button>
+                                                                                        </div>
+                                                                                </div>
+                                                                        ))}
+                                                                </div>
+                                                        )}
+                                                        <button
+                                                                type="button"
+                                                                onClick={() => {
+                                                                        if (!webcam) return;
+                                                                        const id = `layout-${Date.now()}`;
+                                                                        const preset = webcamPositionPreset === "custom" ? "bottom-right" : (webcamPositionPreset as LayoutPreset);
+                                                                        setSavedLayouts((prev) => [
+                                                                                ...prev,
+                                                                                {
+                                                                                        id,
+                                                                                        label: `Layout ${prev.length + 1}`,
+                                                                                        preset,
+                                                                                        size: webcam.size,
+                                                                                        cornerRadius: webcam.cornerRadius,
+                                                                                        aspectRatio: webcam.webcamAspectRatio ?? 1,
+                                                                                        margin: webcam.margin,
+                                                                                },
+                                                                        ]);
+                                                                }}
+                                                                className="w-full rounded-lg border border-dashed border-foreground/[0.12] py-2 text-[10px] text-muted-foreground/50 transition-all hover:border-violet-500/30 hover:text-violet-400/70 flex items-center justify-center gap-1"
+                                                        >
+                                                                <span className="text-[12px] leading-none">+</span> Add Layout
+                                                        </button>
+                                                </div>
+
+                                                {/* ── Remove Background ── */}
+                                                <div className="flex flex-col gap-2">
+                                                        <div className="flex items-center gap-2">
+                                                                <span className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/55">
+                                                                        Background
+                                                                </span>
+                                                                <span className="rounded-full bg-violet-500/20 px-1.5 py-px text-[8px] font-semibold uppercase tracking-wider text-violet-400">
+                                                                        AI
+                                                                </span>
+                                                        </div>
+                                                        <div className="grid grid-cols-3 gap-1.5">
+                                                                {BG_OPTIONS.map((opt) => (
                                                                         <button
+                                                                                key={opt.id}
                                                                                 type="button"
-                                                                                onClick={() => updateWebcam({ mirror: !(webcam?.mirror ?? true) })}
+                                                                                onClick={() => updateWebcam({ backgroundRemoval: opt.id })}
                                                                                 className={cn(
-                                                                                        "w-full rounded-lg border py-1.5 text-[10px] font-medium transition-all duration-150",
-                                                                                        webcam?.mirror
-                                                                                                ? "border-[#a0673a]/60 bg-[#a0673a]/15 text-[#c8895a]"
-                                                                                                : "border-foreground/10 bg-foreground/[0.04] text-muted-foreground hover:border-foreground/20 hover:bg-foreground/[0.08]",
+                                                                                        "rounded-lg border py-2 text-[10px] font-medium transition-all duration-150",
+                                                                                        bgRemoval === opt.id
+                                                                                                ? "border-violet-500/50 bg-violet-500/[0.12] text-violet-300"
+                                                                                                : "border-foreground/[0.08] bg-foreground/[0.03] text-muted-foreground/60 hover:border-foreground/15 hover:text-muted-foreground/80",
                                                                                 )}
                                                                         >
-                                                                                ⟺ Flip Horizontal
+                                                                                {opt.label}
                                                                         </button>
-                                                                        {/* Custom position toggle */}
-                                                                        <div className="flex items-center justify-between rounded-lg bg-black/10 px-2.5 py-1.5">
-                                                                                <span className="text-[10px] text-muted-foreground">Custom position</span>
-                                                                                <Switch
-                                                                                        checked={webcamPositionPreset === "custom"}
-                                                                                        onCheckedChange={(checked) =>
-                                                                                                applyWebcamPositionPreset(
-                                                                                                        checked ? "custom" : DEFAULT_WEBCAM_POSITION_PRESET,
-                                                                                                )
-                                                                                        }
-                                                                                        className="data-[state=checked]:bg-[#a0673a] scale-75"
-                                                                                />
-                                                                        </div>
-                                                                </div>
+                                                                ))}
                                                         </div>
-                                                        {webcamPositionPreset === "custom" ? (
-                                                                <>
-                                                                        <SliderControl
-                                                                                label={tSettings("effects.webcamHorizontal", "Horizontal")}
-                                                                                value={webcamPositionX * 100}
-                                                                                defaultValue={DEFAULT_WEBCAM_POSITION_X * 100}
-                                                                                min={0}
-                                                                                max={100}
-                                                                                step={1}
-                                                                                onChange={(v) =>
-                                                                                        updateWebcam({
-                                                                                                positionPreset: "custom",
-                                                                                                positionX: v / 100,
-                                                                                        })
-                                                                                }
-                                                                                formatValue={(v) => `${Math.round(v)}%`}
-                                                                                parseInput={(text) => parseFloat(text.replace(/%$/, ""))}
-                                                                        />
-                                                                        <SliderControl
-                                                                                label={tSettings("effects.webcamVertical", "Vertical")}
-                                                                                value={webcamPositionY * 100}
-                                                                                defaultValue={DEFAULT_WEBCAM_POSITION_Y * 100}
-                                                                                min={0}
-                                                                                max={100}
-                                                                                step={1}
-                                                                                onChange={(v) =>
-                                                                                        updateWebcam({
-                                                                                                positionPreset: "custom",
-                                                                                                positionY: v / 100,
-                                                                                        })
-                                                                                }
-                                                                                formatValue={(v) => `${Math.round(v)}%`}
-                                                                                parseInput={(text) => parseFloat(text.replace(/%$/, ""))}
-                                                                        />
-                                                                </>
-                                                        ) : null}
-                                                        <SliderControl
-                                                                label={tSettings("effects.webcamMargin", "Margin")}
-                                                                value={webcam?.margin ?? DEFAULT_WEBCAM_MARGIN}
-                                                                defaultValue={DEFAULT_WEBCAM_MARGIN}
-                                                                min={0}
-                                                                max={96}
-                                                                step={1}
-                                                                onChange={(v) => updateWebcam({ margin: v })}
-                                                                formatValue={(v) => `${Math.round(v)}px`}
-                                                                parseInput={(text) => parseFloat(text.replace(/px$/, ""))}
-                                                        />
-                                                        <SliderControl
-                                                                label={tSettings("effects.webcamRoundness")}
-                                                                value={webcam?.cornerRadius ?? DEFAULT_WEBCAM_CORNER_RADIUS}
-                                                                defaultValue={DEFAULT_WEBCAM_CORNER_RADIUS}
-                                                                min={0}
-                                                                max={160}
-                                                                step={1}
-                                                                onChange={(v) => updateWebcam({ cornerRadius: v })}
-                                                                formatValue={(v) => `${Math.round(v)}px`}
-                                                                parseInput={(text) => parseFloat(text.replace(/px$/, ""))}
-                                                        />
-                                                        <SliderControl
-                                                                label={tSettings("effects.webcamShadow")}
-                                                                value={webcam?.shadow ?? DEFAULT_WEBCAM_SHADOW}
-                                                                defaultValue={DEFAULT_WEBCAM_SHADOW}
-                                                                min={0}
-                                                                max={1}
-                                                                step={0.01}
-                                                                onChange={(v) => updateWebcam({ shadow: v })}
-                                                                formatValue={(v) => `${Math.round(v * 100)}%`}
-                                                                parseInput={(text) => parseFloat(text.replace(/%$/, "")) / 100}
-                                                        />
-                                                        <div className="rounded-lg bg-foreground/[0.03] px-2.5 py-2">
-                                                                <div className="flex flex-col gap-2">
-                                                                        <div className="min-w-0">
-                                                                                <div className="text-[10px] text-muted-foreground">
-                                                                                        {tSettings("effects.webcamFootage")}
-                                                                                </div>
-                                                                                <div className="mt-0.5 break-all text-[10px] leading-4 text-muted-foreground/70">
-                                                                                        {webcamFileName ??
-                                                                                                tSettings("effects.webcamFootageDescription")}
-                                                                                </div>
-                                                                        </div>
-                                                                        <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-2">
-                                                                                <Button
-                                                                                        type="button"
-                                                                                        variant="outline"
-                                                                                        onClick={onUploadWebcam}
-                                                                                        className="h-7 min-w-0 gap-1.5 border-foreground/10 bg-foreground/5 px-2 text-[10px] text-foreground hover:bg-foreground/10 hover:text-foreground"
-                                                                                >
-                                                                                        <Upload className="h-3 w-3" />
-                                                                                        <span className="min-w-0 truncate">
-                                                                                                {webcam?.sourcePath
-                                                                                                        ? tSettings("effects.replaceWebcamFootage")
-                                                                                                        : tSettings("effects.uploadWebcamFootage")}
-                                                                                        </span>
-                                                                                </Button>
-                                                                                {webcam?.sourcePath ? (
-                                                                                        <Button
-                                                                                                type="button"
-                                                                                                variant="outline"
-                                                                                                onClick={onClearWebcam}
-                                                                                                className="h-7 min-w-0 gap-1.5 border-foreground/10 bg-foreground/5 px-2 text-[10px] text-foreground hover:bg-foreground/10 hover:text-foreground"
-                                                                                        >
-                                                                                                <Trash2 className="h-3 w-3" />
-                                                                                                <span className="min-w-0 truncate">
-                                                                                                        {tSettings("effects.removeWebcamFootage")}
-                                                                                                </span>
-                                                                                        </Button>
-                                                                                ) : null}
-                                                                        </div>
-                                                                </div>
-                                                        </div>
-                                                        {renderExtensionPanelsForSections("webcam")}
+                                                        {bgRemoval === "image" && (
+                                                                <button
+                                                                        type="button"
+                                                                        onClick={() => {
+                                                                                toast("Background image upload coming soon.");
+                                                                        }}
+                                                                        className="w-full rounded-lg border border-dashed border-foreground/[0.12] py-2 text-[10px] text-muted-foreground/50 transition-all hover:border-foreground/25 hover:text-muted-foreground/80"
+                                                                >
+                                                                        + Choose Background Image
+                                                                </button>
+                                                        )}
                                                 </div>
+
+                                                {/* ── Advanced ── */}
+                                                <details className="group">
+                                                        <summary className="flex cursor-pointer list-none items-center justify-between py-1 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/40 hover:text-muted-foreground/60 transition-colors">
+                                                                <span>Advanced</span>
+                                                                <svg viewBox="0 0 12 12" className="h-2.5 w-2.5 transition-transform group-open:rotate-180" fill="none">
+                                                                        <path d="M2 4l4 4 4-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                                                                </svg>
+                                                        </summary>
+                                                        <div className="mt-2 flex flex-col gap-2">
+                                                                <div className="flex items-center justify-between rounded-lg bg-foreground/[0.03] px-2.5 py-1.5">
+                                                                        <span className="text-[10px] text-muted-foreground">
+                                                                                {tSettings("effects.webcamReactToZoom")}
+                                                                        </span>
+                                                                        <Switch
+                                                                                checked={webcam?.reactToZoom ?? DEFAULT_WEBCAM_REACT_TO_ZOOM}
+                                                                                onCheckedChange={(reactToZoom) => updateWebcam({ reactToZoom })}
+                                                                                className="data-[state=checked]:bg-violet-600 scale-75"
+                                                                        />
+                                                                </div>
+
+                                                                {/* Webcam Crop */}
+                                                                <div className="rounded-lg bg-foreground/[0.03] px-2.5 py-2">
+                                                                        <div className="mb-2 flex items-center justify-between gap-2">
+                                                                                <div className="text-[10px] text-muted-foreground">Crop</div>
+                                                                                <div className="flex items-center gap-2">
+                                                                                        {(() => {
+                                                                                                const cr = webcam?.cropRegion;
+                                                                                                const isDefault = !cr || (cr.x === 0 && cr.y === 0 && cr.width === 1 && cr.height === 1);
+                                                                                                return (
+                                                                                                        <>
+                                                                                                                {!isDefault && (
+                                                                                                                        <button
+                                                                                                                                type="button"
+                                                                                                                                onClick={() => updateWebcam({ cropRegion: DEFAULT_CROP_REGION })}
+                                                                                                                                className="text-[10px] text-violet-400 transition-opacity hover:opacity-80"
+                                                                                                                        >
+                                                                                                                                Reset
+                                                                                                                        </button>
+                                                                                                                )}
+                                                                                                                <Switch
+                                                                                                                        checked={!isDefault}
+                                                                                                                        onCheckedChange={(checked) => {
+                                                                                                                                if (!checked) updateWebcam({ cropRegion: DEFAULT_CROP_REGION });
+                                                                                                                        }}
+                                                                                                                        className="data-[state=checked]:bg-violet-600 scale-75"
+                                                                                                                />
+                                                                                                        </>
+                                                                                                );
+                                                                                        })()}
+                                                                                </div>
+                                                                        </div>
+                                                                        {(() => {
+                                                                                const cr = webcam?.cropRegion;
+                                                                                const isDefault = !cr || (cr.x === 0 && cr.y === 0 && cr.width === 1 && cr.height === 1);
+                                                                                if (isDefault) {
+                                                                                        return (
+                                                                                                <button
+                                                                                                        type="button"
+                                                                                                        onClick={() => updateWebcam({ cropRegion: { x: 0.1, y: 0.1, width: 0.8, height: 0.8 } })}
+                                                                                                        className="mt-1 w-full rounded-md border border-dashed border-foreground/[0.12] py-2 text-[10px] text-muted-foreground/50 transition-all hover:border-foreground/25 hover:text-muted-foreground/80"
+                                                                                                >
+                                                                                                        Enable crop to fine-tune
+                                                                                                </button>
+                                                                                        );
+                                                                                }
+                                                                                return (
+                                                                                        <WebcamCropControl
+                                                                                                cropRegion={webcamCrop}
+                                                                                                mirrored={webcam?.mirror ?? true}
+                                                                                                previewSrc={webcamPreviewSrc}
+                                                                                                previewCurrentTime={webcamPreviewCurrentTime}
+                                                                                                previewPlaying={webcamPreviewPlaying}
+                                                                                                previewTimeOffsetMs={webcam?.timeOffsetMs}
+                                                                                                onCropChange={(cropRegion) => updateWebcam({ cropRegion })}
+                                                                                        />
+                                                                                );
+                                                                        })()}
+                                                                </div>
+
+                                                                {/* Cam Shape */}
+                                                                <div>
+                                                                        <div className="text-[9px] text-muted-foreground/55 uppercase tracking-wide mb-1.5">Shape</div>
+                                                                        <div className="grid grid-cols-5 gap-1">
+                                                                                {WEBCAM_SHAPES.map((shape) => {
+                                                                                        const currentRadius = webcam?.cornerRadius ?? DEFAULT_WEBCAM_CORNER_RADIUS;
+                                                                                        const isShapeActive = shape.id === "circle"
+                                                                                                ? currentRadius >= 140
+                                                                                                : shape.id === "sharp"
+                                                                                                ? currentRadius <= 2
+                                                                                                : Math.abs(currentRadius - shape.cornerRadius) <= 12;
+                                                                                        return (
+                                                                                                <button
+                                                                                                        key={shape.id}
+                                                                                                        type="button"
+                                                                                                        title={shape.label}
+                                                                                                        onClick={() => updateWebcam({ cornerRadius: shape.cornerRadius })}
+                                                                                                        className={cn(
+                                                                                                                "flex flex-col items-center gap-0.5 rounded-lg py-1.5 border transition-all duration-150",
+                                                                                                                isShapeActive
+                                                                                                                        ? "border-violet-500/60 bg-violet-500/15 text-violet-400"
+                                                                                                                        : "border-foreground/10 bg-foreground/[0.04] text-foreground/40 hover:border-foreground/25 hover:text-foreground/60",
+                                                                                                        )}
+                                                                                                >
+                                                                                                        {shape.icon}
+                                                                                                        <span className="text-[7.5px]">{shape.label}</span>
+                                                                                                </button>
+                                                                                        );
+                                                                                })}
+                                                                        </div>
+                                                                </div>
+
+                                                                <SliderControl
+                                                                        label="Size"
+                                                                        value={webcam?.size ?? DEFAULT_WEBCAM_SIZE}
+                                                                        defaultValue={DEFAULT_WEBCAM_SIZE}
+                                                                        min={10}
+                                                                        max={100}
+                                                                        step={1}
+                                                                        onChange={(v) => updateWebcam({ size: v })}
+                                                                        formatValue={(v) => `${Math.round(v)}%`}
+                                                                        parseInput={(text) => parseFloat(text.replace(/%$/, ""))}
+                                                                />
+                                                                <SliderControl
+                                                                        label={tSettings("effects.webcamMargin", "Margin")}
+                                                                        value={webcam?.margin ?? DEFAULT_WEBCAM_MARGIN}
+                                                                        defaultValue={DEFAULT_WEBCAM_MARGIN}
+                                                                        min={0}
+                                                                        max={96}
+                                                                        step={1}
+                                                                        onChange={(v) => updateWebcam({ margin: v })}
+                                                                        formatValue={(v) => `${Math.round(v)}px`}
+                                                                        parseInput={(text) => parseFloat(text.replace(/px$/, ""))}
+                                                                />
+                                                                <SliderControl
+                                                                        label={tSettings("effects.webcamRoundness")}
+                                                                        value={webcam?.cornerRadius ?? DEFAULT_WEBCAM_CORNER_RADIUS}
+                                                                        defaultValue={DEFAULT_WEBCAM_CORNER_RADIUS}
+                                                                        min={0}
+                                                                        max={160}
+                                                                        step={1}
+                                                                        onChange={(v) => updateWebcam({ cornerRadius: v })}
+                                                                        formatValue={(v) => `${Math.round(v)}px`}
+                                                                        parseInput={(text) => parseFloat(text.replace(/px$/, ""))}
+                                                                />
+                                                                <SliderControl
+                                                                        label={tSettings("effects.webcamShadow")}
+                                                                        value={webcam?.shadow ?? DEFAULT_WEBCAM_SHADOW}
+                                                                        defaultValue={DEFAULT_WEBCAM_SHADOW}
+                                                                        min={0}
+                                                                        max={1}
+                                                                        step={0.01}
+                                                                        onChange={(v) => updateWebcam({ shadow: v })}
+                                                                        formatValue={(v) => `${Math.round(v * 100)}%`}
+                                                                        parseInput={(text) => parseFloat(text.replace(/%$/, "")) / 100}
+                                                                />
+                                                                <div className="flex items-center justify-between rounded-lg bg-foreground/[0.03] px-2.5 py-1.5">
+                                                                        <span className="text-[10px] text-muted-foreground">Custom position</span>
+                                                                        <Switch
+                                                                                checked={webcamPositionPreset === "custom"}
+                                                                                onCheckedChange={(checked) =>
+                                                                                        applyWebcamPositionPreset(checked ? "custom" : DEFAULT_WEBCAM_POSITION_PRESET)
+                                                                                }
+                                                                                className="data-[state=checked]:bg-violet-600 scale-75"
+                                                                        />
+                                                                </div>
+                                                                {webcamPositionPreset === "custom" && (
+                                                                        <>
+                                                                                <SliderControl
+                                                                                        label="Horizontal"
+                                                                                        value={webcamPositionX * 100}
+                                                                                        defaultValue={DEFAULT_WEBCAM_POSITION_X * 100}
+                                                                                        min={0}
+                                                                                        max={100}
+                                                                                        step={1}
+                                                                                        onChange={(v) => updateWebcam({ positionPreset: "custom", positionX: v / 100 })}
+                                                                                        formatValue={(v) => `${Math.round(v)}%`}
+                                                                                        parseInput={(text) => parseFloat(text.replace(/%$/, ""))}
+                                                                                />
+                                                                                <SliderControl
+                                                                                        label="Vertical"
+                                                                                        value={webcamPositionY * 100}
+                                                                                        defaultValue={DEFAULT_WEBCAM_POSITION_Y * 100}
+                                                                                        min={0}
+                                                                                        max={100}
+                                                                                        step={1}
+                                                                                        onChange={(v) => updateWebcam({ positionPreset: "custom", positionY: v / 100 })}
+                                                                                        formatValue={(v) => `${Math.round(v)}%`}
+                                                                                        parseInput={(text) => parseFloat(text.replace(/%$/, ""))}
+                                                                                />
+                                                                        </>
+                                                                )}
+                                                        </div>
+                                                </details>
+
+                                                {renderExtensionPanelsForSections("webcam")}
                                         </section>
                                 );
+                        }
                         default: {
                                 // Handle extension-contributed standalone section pages (ext:extensionId/panelId)
                                 if (activeEffectSection?.startsWith("ext:")) {

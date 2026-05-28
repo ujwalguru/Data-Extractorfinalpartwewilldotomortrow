@@ -94,6 +94,8 @@ export type WebcamPositionPreset =
         | "bottom-center"
         | "custom";
 
+export type WebcamBackgroundRemoval = "none" | "blur" | "image";
+
 export interface WebcamOverlaySettings {
         enabled: boolean;
         sourcePath: string | null;
@@ -110,6 +112,8 @@ export interface WebcamOverlaySettings {
         shadow: number;
         margin: number;
         webcamAspectRatio?: number;
+        backgroundRemoval?: WebcamBackgroundRemoval;
+        backgroundImage?: string | null;
 }
 
 export const DEFAULT_CURSOR_SIZE = 3.0;
