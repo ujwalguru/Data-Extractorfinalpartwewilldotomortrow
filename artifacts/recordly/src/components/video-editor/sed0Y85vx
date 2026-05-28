@@ -1,0 +1,119 @@
+import {
+	normalizeExportBackendPreference,
+	normalizeExportMp4FrameRate,
+	normalizeExportPipelineModel,
+	normalizeProjectEditor,
+	stripPersistedDevMotionBlurSettings,
+	type ProjectEditorState,
+} from "./projectPersistence";
+import { loadAppSetting, saveAppSetting } from "../../lib/appSettings";
+
+type PersistedEditorControls = Pick<
+	ProjectEditorState,
+	| "wallpaper"
+	| "shadowIntensity"
+	| "backgroundBlur"
+	| "zoomMotionBlur"
+	| "zoomMotionBlurTuning"
+	| "zoomTemporalMotionBlur"
+	| "zoomMotionBlurSampleCount"
+	| "zoomMotionBlurShutterFraction"
+	| "connectZooms"
+	| "zoomInDurationMs"
+	| "zoomInOverlapMs"
+	| "zoomOutDurationMs"
+	| "connectedZoomGapMs"
+	| "connectedZoomDurationMs"
+	| "zoomInEasing"
+	| "zoomOutEasing"
+	| "connectedZoomEasing"
+	| "showCursor"
+	| "loopCursor"
+	| "cursorStyle"
+	| "cursorSize"
+	| "cursorSmoothing"
+	| "cursorSpringStiffnessMultiplier"
+	| "cursorSpringDampingMultiplier"
+	| "cursorSpringMassMultiplier"
+	| "cameraSpringStiffnessMultiplier"
+	| "cameraSpringDampingMultiplier"
+	| "cameraSpringMassMultiplier"
+	| "cursorMotionBlur"
+	| "cursorClickBounce"
+	| "cursorClickBounceDuration"
+	| "cursorSway"
+	| "borderRadius"
+	| "padding"
+	| "frame"
+	| "webcam"
+	| "aspectRatio"
+	| "exportEncodingMode"
+	| "exportBackendPreference"
+	| "exportPipelineModel"
+	| "exportQuality"
+	| "mp4FrameRate"
+	| "exportFormat"
+	| "gifFrameRate"
+	| "gifLoop"
+	| "gifSizePreset"
+>;
+
+type PartialEditorControls = Partial<PersistedEditorControls>;
+
+type PresetAutoCaptionSettings = ProjectEditorState["autoCaptionSettings"];
+
+export interface EditorPresetSnapshot extends PersistedEditorControls {
+	autoCaptionSettings: PresetAutoCaptionSettings;
+	whisperExecutablePath: string | null;
+	whisperModelPath: string | null;
+}
+
+export interface EditorPreset {
+	id: string;
+	name: string;
+	createdAt: string;
+	updatedAt: string;
+	snapshot: EditorPresetSnapshot;
+}
+
+export interface EditorPreferences extends PersistedEditorControls {
+	customAspectWidth: string;
+	customAspectHeight: string;
+	customWallpapers: string[];
+	autoApplyFreshRecordingAutoZooms: boolean;
+	whisperExecutablePath: string | null;
+	whisperModelPath: string | null;
+}
+
+export const EDITOR_PREFERENCES_STORAGE_KEY = "recordly.editor.preferences";
+export const EDITOR_PRESETS_STORAGE_KEY = "recordly.editor.presets";
+
+const DEFAULT_EDITOR_CONTROLS = normalizeProjectEditor({});
+
+export const DEFAULT_EDITOR_PREFERENCES: EditorPreferences = {
+	wallpaper: DEFAULT_EDITOR_CONTROLS.wallpaper,
+	shadowIntensity: DEFAULT_EDITOR_CONTROLS.shadowIntensity,
+	backgroundBlur: DEFAULT_EDITOR_CONTROLS.backgroundBlur,
+	zoomMotionBlur: DEFAULT_EDITOR_CONTROLS.zoomMotionBlur,
+	zoomMotionBlurTuning: DEFAULT_EDITOR_CONTROLS.zoomMotionBlurTuning,
+	zoomTemporalMotionBlur: DEFAULT_EDITOR_CONTROLS.zoomTemporalMotionBlur,
+	zoomMotionBlurSampleCount: DEFAULT_EDITOR_CONTROLS.zoomMotionBlurSampleCount,
+	zoomMotionBlurShutterFraction: DEFAULT_EDITOR_CONTROLS.zoomMotionBlurShutterFraction,
+	connectZooms: DEFAULT_EDITOR_CONTROLS.connectZooms,
+	zoomInDurationMs: DEFAULT_EDITOR_CONTROLS.zoomInDurationMs,
+	zoomInOverlapMs: DEFAULT_EDITOR_CONTROLS.zoomInOverlapMs,
+	zoomOutDurationMs: DEFAULT_EDITOR_CONTROLS.zoomOutDurationMs,
+	connectedZoomGapMs: DEFAULT_EDITOR_CONTROLS.connectedZoomGapMs,
+	connectedZoomDurationMs: DEFAULT_EDITOR_CONTROLS.connectedZoomDurationMs,
+	zoomInEasing: DEFAULT_EDITOR_CONTROLS.zoomInEasing,
+	zoomOutEasing: DEFAULT_EDITOR_CONTROLS.zoomOutEasing,
+	connectedZoomEasing: DEFAULT_EDITOR_CONTROLS.connectedZoomEasing,
+	showCursor: DEFAULT_EDITOR_CONTROLS.showCursor,
+	loopCursor: DEFAULT_EDITOR_CONTROLS.loopCursor,
+	cursorStyle: DEFAULT_EDITOR_CONTROLS.cursorStyle,
+	cursorSize: DEFAULT_EDITOR_CONTROLS.cursorSize,
+	cursorSmoothing: DEFAULT_EDITOR_CONTROLS.cursorSmoothing,
+	cursorSpringStiffnessMultiplier: DEFAULT_EDITOR_CONTROLS.cursorSpringStiffnessMultiplier,
+	cursorSpringDampingMultiplier: DEFAULT_EDITOR_CONTROLS.cursorSpringDampingMultiplier,
+	cursorSpringMassMultiplier: DEFAULT_EDITOR_CONTROLS.cursorSpringMassMultiplier,
+	cameraSpringStiffnessMultiplier: DEFAULT_EDITOR_CONTROLS.cameraSpringStiffnessMultipl
