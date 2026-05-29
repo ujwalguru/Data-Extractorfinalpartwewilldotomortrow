@@ -1972,16 +1972,26 @@ const VideoPlayback = forwardRef<VideoPlaybackRef, VideoPlaybackProps>(
                                 return;
                         if (video.videoWidth === 0 || video.videoHeight === 0) return;
 
-                        const source = VideoSource.from(video);
-                        if ("autoPlay" in source) {
-                                (source as { autoPlay?: boolean }).autoPlay = false;
+                        let source: ReturnType<typeof VideoSource.from>;
+                        let videoTexture: ReturnType<typeof Texture.from>;
+                        let videoSprite: Sprite;
+                        try {
+                                source = VideoSource.from(video);
+                                if ("autoPlay" in source) {
+                                        (source as { autoPlay?: boolean }).autoPlay = false;
+                                }
+                                if ("autoUpdate" in source) {
+                                        (source as { autoUpdate?: boolean }).autoUpdate = true;
+                                }
+                                videoTexture = Texture.from(source);
+                                videoSprite = new Sprite(videoTexture);
+                        } catch (err) {
+                                const msg = err instanceof Error ? err.message : "Failed to create video texture";
+                                console.error("[VideoPlayback] Video texture setup failed:", err);
+                                onError(`Preview renderer could not load video: ${msg}`);
+                                return;
                         }
-                        if ("autoUpdate" in source) {
-                                (source as { autoUpdate?: boolean }).autoUpdate = true;
-                        }
-                        const videoTexture = Texture.from(source);
 
-                        const videoSprite = new Sprite(videoTexture);
                         videoSpriteRef.current = videoSprite;
 
                         const maskGraphics = new Graphics();
@@ -2041,7 +2051,7 @@ const VideoPlayback = forwardRef<VideoPlaybackRef, VideoPlaybackProps>(
 
                                 videoSpriteRef.current = null;
                         };
-                }, [pixiReady, videoReady, onTimeUpdate, updateOverlayForRegion]);
+                }, [pixiReady, videoReady, onTimeUpdate, updateOverlayForRegion, onError]);
 
                 useEffect(() => {
                         if (!pixiReady || !videoReady) return;
