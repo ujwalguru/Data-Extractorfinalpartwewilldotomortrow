@@ -626,8 +626,8 @@ const VideoPlayback = forwardRef<VideoPlaybackRef, VideoPlaybackProps>(
                                                         (typeof performance === "undefined" ? Date.now() : performance.now()) - initStarted,
                                                 );
                                                 if (isCanvasRenderer(rendererApp)) {
-                                                        throw new Error(
-                                                                `Renderer initialized with unsupported fallback backend after ${elapsed}ms: ${rendererApp.renderer.constructor?.name ?? "unknown"}`,
+                                                        console.warn(
+                                                                `[VideoPlayback] Using Canvas fallback renderer after ${elapsed}ms (no WebGL/WebGPU available). Some effects may be limited.`,
                                                         );
                                                 }
                                                 return { app: rendererApp, backend };
@@ -1843,12 +1843,18 @@ const VideoPlayback = forwardRef<VideoPlaybackRef, VideoPlaybackProps>(
                                 // same layer in preview and export.
                                 const videoEffectsContainer = new Container();
                                 videoEffectsContainerRef.current = videoEffectsContainer;
-                                zoomBlurFilterRef.current = new ZoomBlurFilter({ strength: 0, maxKernelSize: 13 });
-                                motionBlurFilterRef.current = new MotionBlurFilter([0, 0], 5, 0);
-                                videoEffectsContainer.filters = [
-                                        motionBlurFilterRef.current,
-                                        zoomBlurFilterRef.current,
-                                ];
+                                try {
+                                        zoomBlurFilterRef.current = new ZoomBlurFilter({ strength: 0, maxKernelSize: 13 });
+                                        motionBlurFilterRef.current = new MotionBlurFilter([0, 0], 5, 0);
+                                        videoEffectsContainer.filters = [
+                                                motionBlurFilterRef.current,
+                                                zoomBlurFilterRef.current,
+                                        ];
+                                } catch {
+                                        console.warn("[VideoPlayback] Shader filters unavailable (no WebGL). Motion blur effects disabled.");
+                                        zoomBlurFilterRef.current = null;
+                                        motionBlurFilterRef.current = null;
+                                }
                                 cameraContainer.addChild(videoEffectsContainer);
                                 syncPreviewMotionBlurQuality();
 

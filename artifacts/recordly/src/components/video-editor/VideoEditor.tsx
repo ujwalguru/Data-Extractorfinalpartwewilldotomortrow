@@ -5229,17 +5229,26 @@ export default function VideoEditor() {
         }
         if (error) {
                 return (
-                        <div className="flex h-screen items-center justify-center bg-background">
-                                <div className="flex flex-col items-center gap-3">
-                                        <div className="text-destructive">{error}</div>
-                                        <button
-                                                ref={projectBrowserFallbackTriggerRef}
-                                                type="button"
-                                                onClick={handleOpenProjectBrowser}
-                                                className="rounded-[5px] bg-neutral-800 px-3 py-1.5 text-sm font-semibold text-white shadow-[0_14px_32px_rgba(0,0,0,0.18)] transition-colors hover:bg-neutral-700 dark:bg-white dark:text-black dark:hover:bg-white/90"
-                                        >
-                                                Open Projects
-                                        </button>
+                        <div className="flex h-screen items-center justify-center bg-neutral-950">
+                                <div className="flex flex-col items-center gap-4 max-w-md text-center px-6">
+                                        <div className="text-white/90 text-sm font-medium leading-relaxed">{error}</div>
+                                        <div className="flex gap-2">
+                                                <button
+                                                        type="button"
+                                                        onClick={() => window.location.reload()}
+                                                        className="rounded-[5px] bg-neutral-700 px-3 py-1.5 text-sm font-semibold text-white shadow transition-colors hover:bg-neutral-600"
+                                                >
+                                                        Go Back
+                                                </button>
+                                                <button
+                                                        ref={projectBrowserFallbackTriggerRef}
+                                                        type="button"
+                                                        onClick={handleOpenProjectBrowser}
+                                                        className="rounded-[5px] bg-neutral-800 px-3 py-1.5 text-sm font-semibold text-white shadow transition-colors hover:bg-neutral-700"
+                                                >
+                                                        Open Projects
+                                                </button>
+                                        </div>
                                 </div>
                                 {projectBrowser}
                                 {nativeCaptureUnavailableDialog}
